@@ -1,0 +1,120 @@
+using System;
+using System.Net.Sockets;
+using System.Runtime.CompilerServices;
+using System.Threading;
+public class server
+{
+    static TcpListener tcpListener = new TcpListener(5134);
+    static void Listeners()
+    {
+
+        var lockobj = new Object();
+        bool lockTaken = false;
+        Socket socketForClient = tcpListener.AcceptSocket();
+        if (socketForClient.Connected)
+        {
+            string clientData;
+            int threadID = Thread.CurrentThread.ManagedThreadId;
+            Console.WriteLine("Client:" + socketForClient.RemoteEndPoint + " now connected to server and the thread ID"+threadID+" is executing it ");
+            NetworkStream networkStream = new NetworkStream(socketForClient);
+            System.IO.StreamWriter streamWriter = new System.IO.StreamWriter(networkStream);
+            System.IO.StreamReader streamReader = new System.IO.StreamReader(networkStream);
+            while(true)
+            {
+                clientData = streamReader.ReadLine();
+
+                if (clientData == "1")
+                {
+                    try
+                    {
+
+                        Monitor.TryEnter(lockobj, ref lockTaken);
+
+                        if (lockTaken)
+                        {
+                            sharedMemory(socketForClient);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Resource busy, client {0} needs to wait ", threadID);
+                            string toclient2 = "NoLock";
+                            streamWriter.WriteLine(toclient2);
+                            Console.WriteLine(toclient2);
+                            streamWriter.Flush();
+                        }
+
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e.Message);
+                    }
+                    finally
+                    {
+                        if (lockTaken)
+                        {
+
+                            Monitor.Exit(lockobj);
+                            lockTaken = false;
+                        }
+                    }
+                }
+                else if (clientData == "0")
+                {
+                    globals.counter--;
+                    if (globals.counter == 0)
+                    {
+                        //Console.WriteLine("Exiting server");
+                        break;
+                    }
+                    else
+                    {
+                        Console.WriteLine("stopping client {0} ", threadID);
+                    }
+                }
+            }
+            streamReader.Close();
+            networkStream.Close();
+            streamWriter.Close();
+        }
+        socketForClient.Close();
+    }
+    static class globals
+    {
+        public static int counter = 3;
+
+    }
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    static void sharedMemory(Socket soc)
+    {
+        Socket socketForClient = soc;
+        int threadID = Thread.CurrentThread.ManagedThreadId;
+        NetworkStream networkStream = new NetworkStream(socketForClient);
+        System.IO.StreamWriter streamWriter = new System.IO.StreamWriter(networkStream);
+        Console.WriteLine("**********************************");
+        Console.WriteLine("Resource Free ");
+        string toclient1 = "CS";
+        streamWriter.WriteLine(toclient1);
+        Console.WriteLine(toclient1);
+        streamWriter.Flush();
+        Console.WriteLine("Permission Granted to client {0}- Processing it", threadID);
+        Console.WriteLine("Resource Busy");
+        Thread.Sleep(5000);
+        Console.WriteLine("Client {0} Finished processing. Releasing the lock ", threadID);
+        string toClient = "Done";
+        streamWriter.WriteLine(toClient);
+        Console.WriteLine(toClient);
+        streamWriter.Flush();
+        Console.WriteLine("**********************************");
+    }
+
+    public static void Main()
+    {
+        tcpListener.Start();
+        Console.WriteLine("Waiting for the clients to connect at port 5134");
+        for (int i = 0; i < 4; i++)
+        {
+            Thread newThread = new Thread(new ThreadStart(Listeners));
+            newThread.Start();
+        }
+    }
+}
