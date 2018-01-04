@@ -1,0 +1,90 @@
+using System;
+using System.Net.Sockets;
+using System.Threading;
+public class Client
+{
+    static public void Main(string[] Args)
+    {
+        TcpClient socketForServer;
+        //Console.WriteLine("Enter the hostname of the server");
+        //string serverip = Console.ReadLine();
+        try
+        {
+            socketForServer = new TcpClient("localhost", 5134);
+            Console.WriteLine("Connected to the server at port 5134");
+            Console.WriteLine("Client IP address is "+socketForServer.Client.LocalEndPoint);
+        }
+        catch
+        {
+            Console.WriteLine(
+            "Failed to connect to server at {0}:999", "localhost");
+            return;
+        }
+
+        NetworkStream networkStream = socketForServer.GetStream();
+        System.IO.StreamReader streamReader = new System.IO.StreamReader(networkStream);
+        System.IO.StreamWriter streamWriter = new System.IO.StreamWriter(networkStream);
+        Console.Write("Process Processing outside critical section");
+        
+        Console.WriteLine();
+        try
+        {
+            string fromServer;
+            {
+                while (true)
+                {
+                    for (int j = 0; j < 5; j++)
+                    {
+
+                        Console.Write("NCS ");
+                        System.Threading.Thread.Sleep(1000);
+
+                    }
+                    string releaseResource;
+                    Console.WriteLine("**********************************");
+                    Console.WriteLine("Type '1' to try entering Critical Section or type '0' to exit application");
+                    string toServer = Console.ReadLine();
+                    streamWriter.WriteLine(toServer);
+                    streamWriter.Flush();
+                    if (toServer == "1")
+                    {
+                        while (true)
+                        {
+
+                            fromServer = streamReader.ReadLine();
+                            Console.WriteLine("Message Recieved from server:" + fromServer);
+                            if (fromServer == "CS")
+                            {
+                                Console.WriteLine("Processing inside critical section");
+                            }
+                            else if (fromServer == "Done")
+                            {
+
+                                Console.WriteLine("Finished Processing inside critical section at server side and releasing the lock");
+                                break;
+                            }
+                            else if (fromServer == "NoLock")
+                            {
+                                Console.WriteLine("Lock was not acquired");
+                            }
+
+                        }
+                    }
+                    else if (toServer == "0")
+                    {
+                        Console.WriteLine("Exiting the application");
+                        break;
+                    }
+
+                }
+            }
+        }
+        catch
+        {
+            Console.WriteLine("Exception reading from Server");
+        }
+        networkStream.Close();
+        Console.WriteLine("Press any key to exit from client program");
+        Console.ReadKey();
+    }
+}
